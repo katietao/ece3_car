@@ -1,6 +1,7 @@
 #include <ECE3.h>
 
 uint16_t sensorValues[8];
+float minAdjusted[8];
 float maxAdjusted[8];
 
 float error = 0;
@@ -8,6 +9,7 @@ float prevError = 0;
 
 int endRun = 0;
 int turnFlag = 0;
+bool clearedStart = false; 
 
 // ================= MOTOR PINS =================
 const int left_nslp_pin  = 31;
@@ -28,7 +30,6 @@ int baseSpeed;
 
 void setup() {
     ECE3_Init();
-
     pinMode(left_nslp_pin, OUTPUT);
     pinMode(left_dir_pin, OUTPUT);
     pinMode(left_pwm_pin, OUTPUT);
@@ -42,97 +43,68 @@ void setup() {
     digitalWrite(right_nslp_pin, HIGH);
 
     Serial.begin(9600);
-
-    delay(2000);
+    delay(1000); // Give user time to place robot
 }
 
-// ================= ERROR CALCULATION =================
 float readValuesandGetError() {
     ECE3_read_IR(sensorValues);
 
-    // Subtraction of min calibration values
-    float minAdj[8];
-    minAdj[0] = sensorValues[0] - 872;
-    minAdj[1] = sensorValues[1] - 757;
-    minAdj[2] = sensorValues[2] - 688;
-    minAdj[3] = sensorValues[3] - 687;
-    minAdj[4] = sensorValues[4] - 596;
-    minAdj[5] = sensorValues[5] - 687;
-    minAdj[6] = sensorValues[6] - 734;
-    minAdj[7] = sensorValues[7] - 850;
+    // Calibration (Specific to your robot's min readings)
+    minAdjusted[0] = sensorValues[0] - 872;
+    minAdjusted[1] = sensorValues[1] - 757;
+    minAdjusted[2] = sensorValues[2] - 688;
+    minAdjusted[3] = sensorValues[3] - 687;
+    minAdjusted[4] = sensorValues[4] - 596;
+    minAdjusted[5] = sensorValues[5] - 687;
+    minAdjusted[6] = sensorValues[6] - 734;
+    minAdjusted[7] = sensorValues[7] - 850;
 
     for (int i = 0; i < 8; i++) {
-        if (minAdj[i] < 0) minAdj[i] = 0;
+        if (minAdjusted[i] < 0) minAdjusted[i] = 0;
     }
 
     // Gain Normalization
-    maxAdjusted[0] = minAdj[0] / 1.628;
-    maxAdjusted[1] = minAdj[1] / 1.743;
-    maxAdjusted[2] = minAdj[2] / 1.812;
-    maxAdjusted[3] = minAdj[3] / 1.442;
-    maxAdjusted[4] = minAdj[4] / 1.201;
-    maxAdjusted[5] = minAdj[5] / 1.813;
-    maxAdjusted[6] = minAdj[6] / 1.766;
-    maxAdjusted[7] = minAdj[7] / 1.650;
+    maxAdjusted[0] = minAdjusted[0] / 1.628;
+    maxAdjusted[1] = minAdjusted[1] / 1.743;
+    maxAdjusted[2] = minAdjusted[2] / 1.812;
+    maxAdjusted[3] = minAdjusted[3] / 1.442;
+    maxAdjusted[4] = minAdjusted[4] / 1.201;
+    maxAdjusted[5] = minAdjusted[5] / 1.813;
+    maxAdjusted[6] = minAdjusted[6] / 1.766;
+    maxAdjusted[7] = minAdjusted[7] / 1.650;
 
     // Weighted Sum
-    error = 0;
-    for (int i = 0; i < 8; i++) {
-        int weights[] = {W0, W1, W2, W3, W4, W5, W6, W7};
-        error += (maxAdjusted[i] * weights[i]);
-    }
+    error = (maxAdjusted[0]*W0 + maxAdjusted[1]*W1 + maxAdjusted[2]*W2 + maxAdjusted[3]*W3 +
+             maxAdjusted[4]*W4 + maxAdjusted[5]*W5 + maxAdjusted[6]*W6 + maxAdjusted[7]*W7);
 
     error = (error / 8.0) / 2936.764;
     return error;
 }
 
-// ================= 180 DEGREE PIVOT =================
 void performTurn() {
-    // Stop briefly
+    // 1. Brief pause to settle momentum
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
-    delay(100);
+    delay(100); 
 
-    // Pivot Left (Tank Turn)
+    // 2. Set pins for a left tank turn (pivot)
     digitalWrite(left_dir_pin, HIGH); 
     digitalWrite(right_dir_pin, LOW);
-    analogWrite(left_pwm_pin, 60);
-    analogWrite(right_pwm_pin, 60);
+    analogWrite(left_pwm_pin, 65);
+    analogWrite(right_pwm_pin, 65);
 
-    // PHASE 1: Pivot until we LEAVE the black bar (see white)
-    while (true) {
-        ECE3_read_IR(sensorValues);
-        if (sensorValues[3] < 300 && sensorValues[4] < 300) {
-            break;
-        }
-    }
+    // PHASE 1: Blind rotation (Move off the current black bar)
+    delay(1300); 
 
-    // PHASE 2: Keep pivoting through the white space until we HIT the black line
-    while (true) {
-        readValuesandGetError(); // This updates the maxAdjusted array
-        // Wait until the center sensors see the dark line again
-        if (maxAdjusted[3] > 500 || maxAdjusted[4] > 500) {
-            break; 
-        }
-    }
-
-    // PHASE 3: Now that we are on the line, pivot until it's perfectly centered
-    while (true) {
-        float turnError = readValuesandGetError();
-        if (abs(turnError) < 0.15) {
-            break;
-        }
-    }
-
-    // Stop and Reset Direction
+    // 3. Stop and reset direction for forward driving
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
     digitalWrite(left_dir_pin, LOW);
     delay(100);
 }
 
-// ================= MAIN LOOP =================
 void loop() {
+    // STOP PERMANENTLY after two finish line detections
     if (endRun >= 2) {
         analogWrite(left_pwm_pin, 0);
         analogWrite(right_pwm_pin, 0);
@@ -141,7 +113,7 @@ void loop() {
 
     readValuesandGetError();
 
-    // Gain Scheduling based on error severity
+    // GAIN SCHEDULING: Adjust PID based on how far off we are
     if (abs(error) < 0.15) {
         baseSpeed = 135; Kp = 40; Kd = 140;
     } else if (abs(error) < 0.40) {
@@ -150,42 +122,76 @@ void loop() {
         baseSpeed = 95;  Kp = 70; Kd = 260;
     }
 
-    // PD Calculation
     float totalPID = (Kp * error) + (Kd * (error - prevError));
     prevError = error;
-
     totalPID = constrain(totalPID, -80, 80);
 
     int left_pwm  = constrain(baseSpeed - totalPID, 0, 255);
     int right_pwm = constrain(baseSpeed + totalPID, 0, 255);
 
-    // Lost Line Recovery (Hard Steering)
+    // LOST LINE RECOVERY: If totally off, turn hard
     if (error > 0.95) { left_pwm = 40; right_pwm = 140; }
     else if (error < -0.95) { left_pwm = 140; right_pwm = 40; }
 
-    // Finish Line Detection
-    // Requires center-right sensors to be dark
-    bool finishDetected = (maxAdjusted[3] > 600 && maxAdjusted[4] > 600 && maxAdjusted[5] > 600);
+    // =====================================================
+    // LOGIC: START vs. TURN vs. FINISH
+    // =====================================================
 
-    // Ignore detection for the first 1.5 seconds to escape the start line
-    if (finishDetected && millis() > 1500) {
+    // 1. Look for white floor to confirm we've left the starting line
+    if (!clearedStart) {
+        if (maxAdjusted[3] < 400 && maxAdjusted[4] < 400) {
+            clearedStart = true;
+        }
+    }
+
+    // 2. Detection of the Black Cross-Bar (Finish/Turn Bar)
+    bool finishDetected = (maxAdjusted[2] > 600 && maxAdjusted[3] > 800 && 
+                           maxAdjusted[4] > 800 && maxAdjusted[5] > 600);
+
+    if (finishDetected) {
         turnFlag++;
     } else {
         turnFlag = 0;
     }
 
-    // Stable detection trigger
-    if (turnFlag > 8) {
+    // 3. Action based on detection
+    if (turnFlag >= 2) { // Fast response (adjust to 4 or 8 if needed)
         endRun++;
         if (endRun < 2) {
             performTurn();
+            clearedStart = false; // Must see white space after U-turn before finishing
         } else {
+            // This is the second bar (Actual Finish)
             analogWrite(left_pwm_pin, 0);
             analogWrite(right_pwm_pin, 0);
         }
         turnFlag = 0;
     } else {
+        // Normal Driving
         analogWrite(left_pwm_pin, left_pwm);
         analogWrite(right_pwm_pin, right_pwm);
     }
+
+//   // 1. Refresh sensor data
+//   readValuesandGetError(); 
+
+//   // 2. Print RAW values (to check for dead sensors)
+//   Serial.print("RAW: ");
+//   for (int i = 0; i < 8; i++) {
+//     Serial.print(sensorValues[i]);
+//     Serial.print("\t");
+//   }
+
+//   // 3. Print ADJUSTED values (to check calibration & 800 threshold)
+//   Serial.print("| ADJ: ");
+//   for (int i = 0; i < 8; i++) {
+//     Serial.print((int)maxAdjusted[i]); // Cast to int to make it easier to read
+//     Serial.print("\t");
+//   }
+
+//   // 4. Print Error (to check PID logic)
+//   Serial.print("| Err: ");
+//   Serial.println(error, 3); // Print with 3 decimal places
+
+//   delay(200);
 }
