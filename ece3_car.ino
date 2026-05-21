@@ -21,8 +21,8 @@ const int right_dir_pin  = 30;
 const int right_pwm_pin  = 39;
 
 // ================= SENSOR WEIGHTS =================
-int W0 = -15, W1 = -14, W2 = -12, W3 = -8;
-int W4 = 8,   W5 = 12,  W6 = 14,  W7 = 15;
+int W0 = -8, W1 = -4, W2 = -2, W3 = -1;
+int W4 = 1,   W5 = 2,  W6 = 4,  W7 = 8;
 
 // ================= PID & SPEED =================
 float Kp, Kd;
@@ -43,7 +43,7 @@ void setup() {
     digitalWrite(right_nslp_pin, HIGH);
 
     Serial.begin(9600);
-    delay(1000); // Give user time to place robot
+    delay(2000); // Give user time to place robot
 }
 
 float readValuesandGetError() {
@@ -77,7 +77,7 @@ float readValuesandGetError() {
     error = (maxAdjusted[0]*W0 + maxAdjusted[1]*W1 + maxAdjusted[2]*W2 + maxAdjusted[3]*W3 +
              maxAdjusted[4]*W4 + maxAdjusted[5]*W5 + maxAdjusted[6]*W6 + maxAdjusted[7]*W7);
 
-    error = (error / 8.0) / 2936.764;
+    error = (error / 4.0) / 2594.485;
     return error;
 }
 
@@ -85,22 +85,32 @@ void performTurn() {
     // 1. Brief pause to settle momentum
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
-    delay(100); 
+    delay(40); 
 
     // 2. Set pins for a left tank turn (pivot)
     digitalWrite(left_dir_pin, HIGH); 
     digitalWrite(right_dir_pin, LOW);
-    analogWrite(left_pwm_pin, 65);
-    analogWrite(right_pwm_pin, 65);
+    analogWrite(left_pwm_pin, 140);
+    analogWrite(right_pwm_pin, 140);
 
     // PHASE 1: Blind rotation (Move off the current black bar)
-    delay(1300); 
+    delay(450); 
+
+    analogWrite(left_pwm_pin, 0);
+    analogWrite(right_pwm_pin, 0);
+    digitalWrite(left_dir_pin, LOW);
+    digitalWrite(right_dir_pin, LOW);
+    delay(40);
+
+    // Go forward very briefly to go past the black line
+    analogWrite(left_pwm_pin, 100);
+    analogWrite(right_pwm_pin, 100);
+    delay(200);
 
     // 3. Stop and reset direction for forward driving
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
-    digitalWrite(left_dir_pin, LOW);
-    delay(100);
+    delay(40);
 }
 
 void loop() {
@@ -114,24 +124,26 @@ void loop() {
     readValuesandGetError();
 
     // GAIN SCHEDULING: Adjust PID based on how far off we are
-    if (abs(error) < 0.15) {
-        baseSpeed = 135; Kp = 40; Kd = 140;
-    } else if (abs(error) < 0.40) {
-        baseSpeed = 115; Kp = 50; Kd = 180;
-    } else {
-        baseSpeed = 95;  Kp = 70; Kd = 260;
+    if (abs(error) < 0.1) { // straight
+        baseSpeed = 210; Kp = 20; Kd = 300;
+    } 
+    else if (abs(error) < 0.15) { // transition to  curves
+        baseSpeed = 165; Kp = 70; Kd = 700;
+    } 
+    else { // curves
+        baseSpeed = 115; Kp = 100; Kd = 1000;
     }
 
     float totalPID = (Kp * error) + (Kd * (error - prevError));
     prevError = error;
-    totalPID = constrain(totalPID, -80, 80);
+    totalPID = constrain(totalPID, -85, 85);
 
     int left_pwm  = constrain(baseSpeed - totalPID, 0, 255);
     int right_pwm = constrain(baseSpeed + totalPID, 0, 255);
 
     // LOST LINE RECOVERY: If totally off, turn hard
-    if (error > 0.95) { left_pwm = 40; right_pwm = 140; }
-    else if (error < -0.95) { left_pwm = 140; right_pwm = 40; }
+    if (error > 0.95) { left_pwm = 20; right_pwm = 190; }
+    else if (error < -0.95) { left_pwm = 190; right_pwm = 20; }
 
     // =====================================================
     // LOGIC: START vs. TURN vs. FINISH
