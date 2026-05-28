@@ -124,14 +124,14 @@ void loop() {
     readValuesandGetError();
 
     // GAIN SCHEDULING: Adjust PID based on how far off we are
-    if (abs(error) < 0.1) { // straight
-        baseSpeed = 210; Kp = 20; Kd = 300;
+    if (abs(error) < 0.08) { // straight
+        baseSpeed = 230; Kp = 40; Kd = 500;
     } 
-    else if (abs(error) < 0.15) { // transition to  curves
-        baseSpeed = 165; Kp = 70; Kd = 700;
-    } 
+    else if (abs(error) < 0.13) { // transition to  curves
+        baseSpeed = 170; Kp = 120; Kd = 1350;
+    }
     else { // curves
-        baseSpeed = 115; Kp = 100; Kd = 1000;
+        baseSpeed = 130; Kp = 200; Kd = 2500;
     }
 
     float totalPID = (Kp * error) + (Kd * (error - prevError));
