@@ -94,18 +94,18 @@ void performTurn() {
     analogWrite(right_pwm_pin, 180);
 
     // PHASE 1: Blind rotation (Move off the current black bar)
-    delay(350); 
+    delay(330); 
 
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
     digitalWrite(left_dir_pin, LOW);
     digitalWrite(right_dir_pin, LOW);
-    delay(20);
+    delay(10);
 
     // Go forward very briefly to go past the black line
     analogWrite(left_pwm_pin, 100);
     analogWrite(right_pwm_pin, 100);
-    delay(250);
+    delay(300);
 
     // 3. Stop and reset direction for forward driving
     analogWrite(left_pwm_pin, 0);
@@ -125,13 +125,13 @@ void loop() {
 
     // GAIN SCHEDULING: Adjust PID based on how far off we are
     if (abs(error) < 0.08) { // straight
-        baseSpeed = 240; Kp = 60; Kd = 520;
+        baseSpeed = 240; Kp = 90; Kd = 1300;
     } 
     else if (abs(error) < 0.13) { // transition to  curves
-        baseSpeed = 210; Kp = 190; Kd = 2200;
+        baseSpeed = 210; Kp = 260; Kd = 3000;
     }
     else { // curves
-        baseSpeed = 165; Kp = 275; Kd = 3500;
+        baseSpeed = 165; Kp = 330; Kd = 4200;
     }
 
     float totalPID = (Kp * error) + (Kd * (error - prevError));
