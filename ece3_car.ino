@@ -90,22 +90,22 @@ void performTurn() {
     // 2. Set pins for a left tank turn (pivot)
     digitalWrite(left_dir_pin, HIGH); 
     digitalWrite(right_dir_pin, LOW);
-    analogWrite(left_pwm_pin, 140);
-    analogWrite(right_pwm_pin, 140);
+    analogWrite(left_pwm_pin, 180);
+    analogWrite(right_pwm_pin, 180);
 
     // PHASE 1: Blind rotation (Move off the current black bar)
-    delay(450); 
+    delay(350); 
 
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
     digitalWrite(left_dir_pin, LOW);
     digitalWrite(right_dir_pin, LOW);
-    delay(40);
+    delay(20);
 
     // Go forward very briefly to go past the black line
     analogWrite(left_pwm_pin, 100);
     analogWrite(right_pwm_pin, 100);
-    delay(200);
+    delay(250);
 
     // 3. Stop and reset direction for forward driving
     analogWrite(left_pwm_pin, 0);
@@ -125,18 +125,18 @@ void loop() {
 
     // GAIN SCHEDULING: Adjust PID based on how far off we are
     if (abs(error) < 0.08) { // straight
-        baseSpeed = 230; Kp = 40; Kd = 500;
+        baseSpeed = 240; Kp = 60; Kd = 520;
     } 
     else if (abs(error) < 0.13) { // transition to  curves
-        baseSpeed = 170; Kp = 120; Kd = 1350;
+        baseSpeed = 210; Kp = 190; Kd = 2200;
     }
     else { // curves
-        baseSpeed = 130; Kp = 200; Kd = 2500;
+        baseSpeed = 165; Kp = 275; Kd = 3500;
     }
 
     float totalPID = (Kp * error) + (Kd * (error - prevError));
     prevError = error;
-    totalPID = constrain(totalPID, -85, 85);
+    totalPID = constrain(totalPID, -150, 150);
 
     int left_pwm  = constrain(baseSpeed - totalPID, 0, 255);
     int right_pwm = constrain(baseSpeed + totalPID, 0, 255);
