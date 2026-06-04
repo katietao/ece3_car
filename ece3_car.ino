@@ -21,8 +21,8 @@ const int right_dir_pin  = 30;
 const int right_pwm_pin  = 39;
 
 // ================= SENSOR WEIGHTS =================
-int W0 = -8, W1 = -4, W2 = -2, W3 = -1;
-int W4 = 1,   W5 = 2,  W6 = 4,  W7 = 8;
+int W0 = -7, W1 = -4, W2 = -2, W3 = -1;
+int W4 = 1,   W5 = 2,  W6 = 4,  W7 = 7;
 
 // ================= PID & SPEED =================
 float Kp, Kd;
@@ -94,7 +94,7 @@ void performTurn() {
     analogWrite(right_pwm_pin, 180);
 
     // PHASE 1: Blind rotation (Move off the current black bar)
-    delay(330); 
+    delay(350); 
 
     analogWrite(left_pwm_pin, 0);
     analogWrite(right_pwm_pin, 0);
@@ -105,7 +105,7 @@ void performTurn() {
     // Go forward very briefly to go past the black line
     analogWrite(left_pwm_pin, 100);
     analogWrite(right_pwm_pin, 100);
-    delay(300);
+    delay(350);
 
     // 3. Stop and reset direction for forward driving
     analogWrite(left_pwm_pin, 0);
@@ -125,13 +125,13 @@ void loop() {
 
     // GAIN SCHEDULING: Adjust PID based on how far off we are
     if (abs(error) < 0.08) { // straight
-        baseSpeed = 240; Kp = 90; Kd = 1300;
+        baseSpeed = 240; Kp = 90; Kd = 1400;
     } 
     else if (abs(error) < 0.13) { // transition to  curves
-        baseSpeed = 210; Kp = 260; Kd = 3000;
+        baseSpeed = 210; Kp = 260; Kd = 3100;
     }
     else { // curves
-        baseSpeed = 165; Kp = 330; Kd = 4200;
+        baseSpeed = 165; Kp = 330; Kd = 4300;
     }
 
     float totalPID = (Kp * error) + (Kd * (error - prevError));
